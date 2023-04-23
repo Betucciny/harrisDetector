@@ -30,7 +30,7 @@ def gradient(image):
     return Ixx, Ixy, Iyy
 
 
-def harris_detector(image: np.array):
+def harris_detector(image: np.array, k: float = 0.04):
     # Convert image to grayscale
     image = np.array(image.convert('L'))
 
@@ -43,7 +43,6 @@ def harris_detector(image: np.array):
     Syy = conv(Iyy, gauss_kernel(3, 1))
 
     # Calculate corner response function
-    k = 0.04
     det = (Sxx * Syy) - (Sxy ** 2)
     trace = Sxx + Syy
     R = det - k * (trace ** 2)
@@ -61,7 +60,7 @@ def harris_detector(image: np.array):
 
 def main():
     image = Image.open('img_1.png')
-    R = harris_detector(image)
+    R = harris_detector(image, k=0.0004)
     plt.imshow(image)
     plt.scatter([p[1] for p in R], [p[0] for p in R], s=1, marker='o', c='r')
     plt.title("Harris")
