@@ -3,70 +3,55 @@ from matplotlib import pyplot as plt
 from PIL import Image
 
 
-def gauss_kernel(size: int, sigma: float):
-    x, y = np.mgrid[-size // 2 + 1:size // 2 + 1, -size // 2 + 1:size // 2 + 1]
-    kernel = np.exp(-((x ** 2 + y ** 2) / (2.0 * sigma ** 2)))
-    kernel /= 2 * np.pi * sigma ** 2
-    return kernel
+def harris_detector(img_dir, window_size, k, threshold):
+    img = Image.open(img_dir)
+    img = np.array(img)
+    gray = np.dot(img[..., :3], [0.299, 0.587, 0.114])
+
+    height = img.shape[0]
+    width = img.shape[1]
+    matrix_R = np.zeros((height, width))
+    dy, dx = np.gradient(gray)
+
+    dx2 = np.square(dx)
+    dy2 = np.square(dy)
+    dxy = dx * dy
+
+    offset = int(window_size / 2)
+    print("Finding Corners...")
+    for y in range(offset, height - offset):
+        for x in range(offset, width - offset):
+            Sx2 = np.sum(dx2[y - offset:y + 1 + offset, x - offset:x + 1 + offset])
+            Sy2 = np.sum(dy2[y - offset:y + 1 + offset, x - offset:x + 1 + offset])
+            Sxy = np.sum(dxy[y - offset:y + 1 + offset, x - offset:x + 1 + offset])
+            H = np.array([[Sx2, Sxy], [Sxy, Sy2]])
+            det = np.linalg.det(H)
+            tr = np.matrix.trace(H)
+            R = det - k * (tr ** 2)
+            matrix_R[y - offset, x - offset] = R
+
+    cornerList = []
+    matrix_R = matrix_R / np.max(matrix_R)
+    for y in range(offset, height - offset):
+        for x in range(offset, width - offset):
+            value = matrix_R[y, x]
+            if value > threshold:
+                cornerList.append([x, y, value])
+
+    return cornerList, img
 
 
-def conv(image, kernel):
-    kernel = np.flipud(np.fliplr(kernel))
-    image_padded = np.zeros((image.shape[0] + kernel.shape[0] - 1, image.shape[1] + kernel.shape[1] - 1))
-    image_padded[kernel.shape[0] - 2:-1, kernel.shape[1] - 2:-1] = image
-    image_conv = np.zeros_like(image)
-    for x in range(image.shape[1]):
-        for y in range(image.shape[0]):
-            image_conv[y, x] = (kernel * image_padded[y:y + kernel.shape[0], x:x + kernel.shape[1]]).sum()
-    return image_conv
-
-
-def gradient(image):
-    Ix = np.gradient(image, axis=1)
-    Iy = np.gradient(image, axis=0)
-    Ixx = Ix * Ix
-    Ixy = Ix * Iy
-    Iyy = Iy * Iy
-    return Ixx, Ixy, Iyy
-
-
-def harris_detector(image: np.array, k: float = 0.04):
-    # Convert image to grayscale
-    image = np.array(image.convert('L'))
-
-    # Calculate gradients
-    Ixx, Ixy, Iyy = gradient(image)
-
-    # Calculate sums over local neighbourhoods
-    Sxx = conv(Ixx, gauss_kernel(3, 1))
-    Sxy = conv(Ixy, gauss_kernel(3, 1))
-    Syy = conv(Iyy, gauss_kernel(3, 1))
-
-    # Calculate corner response function
-    det = (Sxx * Syy) - (Sxy ** 2)
-    trace = Sxx + Syy
-    R = det - k * (trace ** 2)
-
-    # Threshold the corner points
-    threshold = 0.1 * R.max()
-    R[R < threshold] = 0
-    corner_points = []
-    for i in range(R.shape[0]):
-        for j in range(R.shape[1]):
-            if R[i, j] > 0:
-                corner_points.append([i, j])
-    return corner_points
+def show_corners(img_dir):
+    corner_list, img = harris_detector(img_dir, 3, 0.04, 0.1)
+    img = np.array(img)
+    plt.imshow(img)
+    plt.scatter([p[0] for p in corner_list], [p[1] for p in corner_list], s=1, marker='o', c='r')
+    plt.show()
 
 
 def main():
-    image = Image.open('img_1.png')
-    R = harris_detector(image, k=0.0004)
-    plt.imshow(image)
-    plt.scatter([p[1] for p in R], [p[0] for p in R], s=1, marker='o', c='r')
-    plt.title("Harris")
-    plt.xticks([]), plt.yticks([])
-    plt.savefig('Harris_detector', bbox_inches='tight')
-    plt.show()
+    show_corners("img.png")
+    show_corners("img_1.jpg")
 
 
 if __name__ == '__main__':
